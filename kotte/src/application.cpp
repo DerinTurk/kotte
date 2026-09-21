@@ -110,15 +110,16 @@ namespace kotte
             }
         }
 
+        // The query runs for diagnostics while drawing retains the correct
+        // complete scan. Finish W4.1 and W4.2 before switching this loop.
         const SpatialQuery spatial_query = spatial_grid_.query(world_view);
         std::size_t exact_visibility_tests = 0;
         std::size_t visible_entities = 0;
         renderer_.clear();
 
-        // The spatial query replaces Week 3's complete entity scan. Its result is
-        // only a candidate list, so every candidate still needs an exact test.
-        for(const std::size_t entity_index : spatial_query.entity_indices){
-            const Entity& entity = entities_[entity_index];
+        // TODO W4.3: Iterate unique query indices and look up each Entity.
+        // Keep the exact test and command extraction below unchanged.
+        for(const Entity& entity : entities_){
             Rectangle bounds = entity_world_bounds(entity);
             ++exact_visibility_tests;
             if(!CheckCollisionRecs(bounds, world_view)){
@@ -163,9 +164,10 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 130, 20, RAYWHITE);
 
         diagnostics = std::format(
-            "spatial: {} x {} cells @ {:.0f} px | {} visited | {} refs",
+            "spatial: {} x {} cells @ {:.0f} px | {} visited | {} refs | {} unique",
             spatial_grid_.columns(), spatial_grid_.rows(), spatial_grid_.cell_size(),
-            spatial_query.cells_visited, spatial_query.candidate_references);
+            spatial_query.cells_visited, spatial_query.candidate_references,
+            spatial_query.entity_indices.size());
         DrawText(diagnostics.c_str(), 10, 154, 20, RAYWHITE);
 
         diagnostics = std::format(

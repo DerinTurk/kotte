@@ -54,34 +54,19 @@ namespace kotte
         std::size_t entity_index,
         Rectangle old_world_bounds,
         Rectangle new_world_bounds){
-        if(cells_overlapping(old_world_bounds) == cells_overlapping(new_world_bounds)){
-            return;
-        }
-
-        remove(entity_index, old_world_bounds);
-        insert(entity_index, new_world_bounds);
+        // TODO W4.2: Compare the old/new cell ranges. If membership changes,
+        // remove the old references and insert the new ones.
+        (void) entity_index;
+        (void) old_world_bounds;
+        (void) new_world_bounds;
     }
 
     SpatialQuery SpatialGrid::query(Rectangle world_bounds) const{
         SpatialQuery result;
-        const CellRange range = cells_overlapping(world_bounds);
-
-        // First gather every reference from the cells touched by the query.
-        // A large entity may appear in more than one of those cells.
-        for(int row = range.first_row; row < range.past_last_row; ++row){
-            for(int column = range.first_column; column < range.past_last_column; ++column){
-                const Cell& cell = at(column, row);
-                ++result.cells_visited;
-                result.candidate_references += cell.size();
-                result.entity_indices.insert(result.entity_indices.end(), cell.begin(), cell.end());
-            }
-        }
-
-        // Sorting places repeated indices next to each other. Removing them here
-        // ensures that each entity receives one exact test and one command at most.
-        std::ranges::sort(result.entity_indices);
-        const auto duplicate_tail = std::ranges::unique(result.entity_indices);
-        result.entity_indices.erase(duplicate_tail.begin(), duplicate_tail.end());
+        // TODO W4.1: Visit only overlapping cells, count cells and raw
+        // references, gather their indices, then sort/unique/erase duplicates.
+        // This deliberately empty result is not used for drawing yet.
+        (void) world_bounds;
         return result;
     }
 

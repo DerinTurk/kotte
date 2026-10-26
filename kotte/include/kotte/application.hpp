@@ -73,6 +73,13 @@ namespace kotte
             float remaining_seconds = 0.0f;
         };
 
+        enum class RoundState
+        {
+            playing,
+            lost,
+            won
+        };
+
         void run_frame(float delta_time);
         void begin_frame() noexcept;
         void collect_frame_actions() noexcept;
@@ -111,6 +118,9 @@ namespace kotte
         [[nodiscard]] bool entity_movement_is_blocked(
             EntityHandle moving_entity_handle,
             Vector2 proposed_position);
+        [[nodiscard]] void entity_movement_is_blocked_by_player(
+            Rectangle enemy_bounds,
+            Rectangle player_bounds);
         [[nodiscard]] static bool is_solid(EntityKind kind) noexcept;
         [[nodiscard]] static Vector2 cardinal_vector(CardinalDirection direction) noexcept;
         [[nodiscard]] CardinalDirection different_enemy_direction(CardinalDirection current_direction);
@@ -157,6 +167,7 @@ namespace kotte
         CollisionDiagnostics collision_diagnostics_;
         std::uint64_t seed_;
         EntityHandle player_handle_;
+        RoundState round_state = RoundState::playing;
         bool exit_requested_ = false;
     };
 }

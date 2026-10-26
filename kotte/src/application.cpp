@@ -546,6 +546,19 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
 
         DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+
+        switch (round_state) {
+        case RoundState::playing:
+            DrawText("PLAYING", 20, 140, 24, RAYWHITE);
+            break;
+
+        case RoundState::won:
+            DrawText("YOU WON", 20, 140, 24, GREEN);
+            break;
+        case RoundState::lost:
+            DrawText("YOU LOST", 20, 140, 24, RED);
+            break;
+        }
     }
 
     void Application::populate_entities(){
@@ -685,19 +698,39 @@ namespace kotte
             }
 
             const Entity* candidate = entities_.try_get(candidate_handle);
+
+            
             if(candidate == nullptr || !is_solid(candidate->kind)){
                 continue;
             }
 
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
+            
+            entity_movement_is_blocked_by_player(entity_collision_bounds(proposed_entity), entity_collision_bounds(*candidate));
+
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
+                
                 ++collision_diagnostics_.contacts;
                 blocked = true;
             }
         }
 
         return blocked;
+    }
+
+    void Application::entity_movement_is_blocked_by_player(Rectangle enemy_bounds, Rectangle player_bounds) {
+        Rectangle proposed_collision_bounds = enemy_bounds;
+
+        proposed_collision_bounds.x -= 5.0f;
+        proposed_collision_bounds.y -= 5.0f;
+        proposed_collision_bounds.width += 5.0f;
+        proposed_collision_bounds.height += 5.0f;
+
+        if (CheckCollisionRecs(proposed_collision_bounds, player_bounds)) {
+            round_state = RoundState::lost;
+        }
+        
     }
 
     bool Application::is_solid(EntityKind kind) noexcept{

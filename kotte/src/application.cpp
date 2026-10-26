@@ -129,6 +129,11 @@ namespace kotte
     }
 
     void Application::resolve_gameplay_facts(){
+
+        if (enemies_destroyed >= must_destroy_to_win_condition) {
+            round_state = RoundState::won;
+        }
+
         for(const BombDetonated& fact : bomb_detonated_facts_){
             BlastEffect effect;
             effect.remaining_seconds = blast_effect_seconds_;
@@ -306,6 +311,10 @@ namespace kotte
                 continue;
             }
 
+            if (doomed->kind == EntityKind::enemy) {
+                ++enemies_destroyed;
+            }
+
             // Spatial membership is derived from the live entity, so remove it
             // while the handle can still resolve to the bounds used at insertion.
             spatial_grid_.remove(request.entity, entity_world_bounds(*doomed));
@@ -361,6 +370,7 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
+                round_state = RoundState::lost;
                 // Player-hit consequences are outside the Week 6 lifetime seam.
                 break;
             }

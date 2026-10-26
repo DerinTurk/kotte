@@ -94,9 +94,16 @@ namespace kotte
 
     void Application::update_gameplay(float delta_time){
         // The player and every enemy are movers; each asks its own collision question.
+        if (round_state != RoundState::playing) {
+            return;
+        }
+
         update_player(delta_time);
         update_enemies(delta_time);
-        queue_bomb_placement();
+        if (!player_death_requested_) {
+            queue_bomb_placement();
+        }
+        
     }
 
     void Application::update_timed_gameplay(float delta_time){
@@ -161,8 +168,15 @@ namespace kotte
 
     void Application::apply_structural_mutations(){
         // Entity storage and every derived index change only at this boundary.
+        apply_player_death();
         apply_entity_destructions();
-        apply_bomb_placements();
+
+        if (round_state == RoundState::playing) {
+            apply_bomb_placements();
+        }
+        else {
+            place_bomb_requests_.clear();
+        }
     }
 
     void Application::update_presentation(float delta_time){
@@ -296,6 +310,21 @@ namespace kotte
         place_bomb_requests_.clear();
     }
 
+    void Application::apply_player_death() {
+        if (!player_death_requested_) {
+            return;
+        }
+
+        player_death_requested_ = false;
+
+        if (round_state != RoundState::playing) {
+            return;
+        }
+        round_state = RoundState::lost;
+        
+        destroy_entity_requests_.push_back({ player_handle_ });
+    }
+
     void Application::apply_entity_destructions(){
         // A moving entity may overlap several blast tiles, and several bombs may
         // reach it in one frame. Canonicalizing requests makes that multiplicity
@@ -370,9 +399,10 @@ namespace kotte
                 blocked_by_crate = true;
                 break;
             case EntityKind::player:
-                round_state = RoundState::lost;
-                // Player-hit consequences are outside the Week 6 lifetime seam.
-                break;
+                if (round_state == RoundState::playing) {
+                    player_death_requested_ = true;
+                    break;
+                }
             }
         }
 
@@ -402,7 +432,11 @@ namespace kotte
     void Application::update_camera(float delta_time) noexcept{
         (void) delta_time; // name the argument to avoid the static analyzer yelling at us. :) We'll animate the camera later.
         camera_.set_viewport_size(window_.size());
-        camera_.set_centre(player().world_position);
+
+        if (round_state == RoundState::playing && entities_.contains(player_handle_)) {
+            camera_.set_centre(player().world_position);
+        }
+        
     }
 
     void Application::render(){
@@ -736,13 +770,13 @@ namespace kotte
     void Application::entity_movement_is_blocked_by_player(Rectangle enemy_bounds, Rectangle player_bounds) {
         Rectangle proposed_collision_bounds = enemy_bounds; 
 
-        proposed_collision_bounds.x -= 5.0f;
-        proposed_collision_bounds.y -= 5.0f;
-        proposed_collision_bounds.width =+ 10.0f;
-        proposed_collision_bounds.height =+ 10.0f;
+        proposed_collision_bounds.x -= 10.0f;
+        proposed_collision_bounds.y -= 10.0f;
+        proposed_collision_bounds.width =+ 20.0f;
+        proposed_collision_bounds.height =+ 20.0f;
 
         if (CheckCollisionRecs(proposed_collision_bounds, player_bounds)) {
-            round_state = RoundState::lost;
+            player_death_requested_ = true;
         }
         
     }

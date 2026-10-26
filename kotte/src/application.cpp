@@ -707,8 +707,12 @@ namespace kotte
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             
-            entity_movement_is_blocked_by_player(entity_collision_bounds(proposed_entity), entity_collision_bounds(*candidate));
+            if (candidate->kind == EntityKind::player)   {
+                entity_movement_is_blocked_by_player(proposed_collision_bounds, entity_collision_bounds(*candidate));
 
+            }
+            
+            
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
                 
                 ++collision_diagnostics_.contacts;
@@ -720,12 +724,12 @@ namespace kotte
     }
 
     void Application::entity_movement_is_blocked_by_player(Rectangle enemy_bounds, Rectangle player_bounds) {
-        Rectangle proposed_collision_bounds = enemy_bounds;
+        Rectangle proposed_collision_bounds = enemy_bounds; 
 
         proposed_collision_bounds.x -= 5.0f;
         proposed_collision_bounds.y -= 5.0f;
-        proposed_collision_bounds.width += 5.0f;
-        proposed_collision_bounds.height += 5.0f;
+        proposed_collision_bounds.width =+ 10.0f;
+        proposed_collision_bounds.height =+ 10.0f;
 
         if (CheckCollisionRecs(proposed_collision_bounds, player_bounds)) {
             round_state = RoundState::lost;

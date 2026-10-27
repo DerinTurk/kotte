@@ -174,5 +174,6 @@ namespace kotte
         int enemies_destroyed = 0;
         int must_destroy_to_win_condition = 5;
         bool exit_requested_ = false;
+        bool bomb_exited = true;
     };
 }

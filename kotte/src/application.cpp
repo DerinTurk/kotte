@@ -237,6 +237,11 @@ namespace kotte
             ++collision_diagnostics_.blocked_moves;
             return;
         }
+        else {
+            if (!bomb_exited) {
+                bomb_exited = true;
+            }
+        }
 
         // Accept the clear proposal; grid synchronization happens after both axes.
         player_entity.world_position = proposed_position;
@@ -295,6 +300,8 @@ namespace kotte
                 continue;
             }
 
+            bomb_exited = false;
+
             const Entity bomb{
                 .kind = EntityKind::bomb,
                 .world_position = request.world_position,
@@ -334,6 +341,7 @@ namespace kotte
         // A moving entity may overlap several blast tiles, and several bombs may
         // reach it in one frame. Canonicalizing requests makes that multiplicity
         // explicit instead of depending on a forgiving destruction order.
+        bomb_exited = true;
         std::ranges::sort(destroy_entity_requests_, {}, &DestroyEntityRequest::entity);
         const auto duplicate_tail = std::ranges::unique(
             destroy_entity_requests_, {}, &DestroyEntityRequest::entity);
@@ -773,10 +781,15 @@ namespace kotte
 
             const Entity* candidate = entities_.try_get(candidate_handle);
 
+            if (candidate == nullptr || (candidate->kind == EntityKind::bomb && bomb_exited)) {
+                continue;
+            }
             
+            /*
             if(candidate == nullptr || !is_solid(candidate->kind)){
                 continue;
             }
+            */
 
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
@@ -816,9 +829,8 @@ namespace kotte
         case EntityKind::player:
         case EntityKind::crate:
         case EntityKind::enemy:
-            return true;
         case EntityKind::bomb:
-            return false;
+            return true;
         }
 
         return false;

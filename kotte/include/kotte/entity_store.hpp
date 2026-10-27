@@ -14,6 +14,7 @@ namespace kotte
     class EntityStore final {
     public:
         void reserve(std::size_t capacity);
+        void clear() noexcept;
 
         [[nodiscard]] EntityHandle create(Entity entity);
         [[nodiscard]] bool destroy(EntityHandle handle);

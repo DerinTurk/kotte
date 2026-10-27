@@ -15,6 +15,23 @@ namespace kotte
         free_slots_.reserve(capacity);
     }
 
+    void EntityStore::clear() noexcept {
+        free_slots_.clear();
+        free_slots_.reserve(slots_.size());
+
+        for (std::size_t i = 0; i < slots_.size(); ++i) {
+            Slot& slot = slots_[i];
+            
+            slot.entity.reset();
+            slot.generation = next_generation(slot.generation);
+            
+
+            free_slots_.push_back(static_cast<std::uint32_t>(i));
+        }
+
+        live_count_ = 0;
+    }
+
     EntityHandle EntityStore::create(Entity entity){
         if(!free_slots_.empty()){
             const std::uint32_t slot_index = free_slots_.back();

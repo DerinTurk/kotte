@@ -72,6 +72,11 @@ namespace kotte
         }
         frame_actions_.place_bomb = IsKeyPressed(KEY_SPACE);
 
+        if (IsKeyPressed(KEY_R)) {
+            restart_round();
+            return;
+        }
+
         Vector2& movement_direction = frame_actions_.player_movement_direction;
         if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
             movement_direction.x -= 1.0f;
@@ -650,6 +655,23 @@ namespace kotte
             enemy.movement_heading = static_cast<CardinalDirection>(
                 random_.next<4, std::uint8_t>());
         }
+    }
+
+    void Application::restart_round()
+    {
+        enemy_handles_.clear();
+        active_bomb_handles_.clear();
+        place_bomb_requests_.clear();
+        bomb_detonated_facts_.clear();
+        destroy_entity_requests_.clear();
+        blast_effects_.clear();
+
+        entities_.clear();
+        populate_entities();
+        initialize_enemies();
+        player_death_requested_ = false;
+        round_state = RoundState::playing;
+
     }
 
     Entity& Application::entity(EntityHandle handle) noexcept{

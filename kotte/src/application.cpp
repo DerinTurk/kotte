@@ -73,6 +73,11 @@ namespace kotte
         frame_actions_.place_bomb = IsKeyPressed(KEY_SPACE);
 
         if (IsKeyPressed(KEY_R)) {
+            //REVIEW: Restart rebuilds the world during input collection, outside the
+            // structural-mutation phase. It can also allocate; if allocation throws,
+            // this noexcept function would terminate the program.
+            // consider: setting a restart flag here and handling it in the defined
+            // mutation phase, giving restart priority over ordinary gameplay that frame.
             restart_round();
             return;
         }
@@ -112,6 +117,8 @@ namespace kotte
     }
 
     void Application::update_timed_gameplay(float delta_time){
+        //REVIEW: Existing bombs still tick and can destroy entities after Won/Lost; is that the intended end-state policy?
+        // consider: only updating bomb timers while the round is Playing.
         // This list is independent of camera queries, so off-screen fuses advance.
         for(const EntityHandle bomb_handle : active_bomb_handles_){
             Entity* bomb = entities_.try_get(bomb_handle);
@@ -142,6 +149,10 @@ namespace kotte
 
     void Application::resolve_gameplay_facts(){
 
+        //REVIEW: This can overwrite Lost with Won, and it runs before this frame's deaths update the kill count.
+        // consider: deciding the result after applying deaths and destruction,
+        // and only while Playing. Choose which result takes priority if the
+        // player dies and completes the objective in the same frame.
         if (enemies_destroyed >= must_destroy_to_win_condition) {
             round_state = RoundState::won;
         }
@@ -238,6 +249,8 @@ namespace kotte
             return;
         }
         else {
+            //REVIEW: A successful movement step may still leave the owner overlapping the bomb.
+            // consider: only ending the exception once the owner has moved completely clear of that bomb.
             if (!bomb_exited) {
                 bomb_exited = true;
             }
@@ -341,6 +354,8 @@ namespace kotte
         // A moving entity may overlap several blast tiles, and several bombs may
         // reach it in one frame. Canonicalizing requests makes that multiplicity
         // explicit instead of depending on a forgiving destruction order.
+        //REVIEW: This runs every frame, even with no destruction requests, so escape state changes without an actual exit.
+        // consider: removing this assignment and updating escape state from the owner's overlap with its particular bomb.
         bomb_exited = true;
         std::ranges::sort(destroy_entity_requests_, {}, &DestroyEntityRequest::entity);
         const auto duplicate_tail = std::ranges::unique(
@@ -606,6 +621,8 @@ namespace kotte
             "world: {} x {} tiles | {} total", map_.width(), map_.height(), map_.tile_count());
         DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
 
+        //REVIEW: The HUD shows the round state, but not the objective, progress, or restart key.
+        // consider: showing the five-enemy target, current count, and the R key.
         DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
 
         switch (round_state) {
@@ -686,6 +703,8 @@ namespace kotte
         populate_entities();
         initialize_enemies();
         player_death_requested_ = false;
+        //REVIEW: enemies_destroyed survives restart, so a previously won round can immediately become Won again.
+        // consider: resetting the kill count and other round-specific values before returning to Playing.
         round_state = RoundState::playing;
 
     }
@@ -781,6 +800,8 @@ namespace kotte
 
             const Entity* candidate = entities_.try_get(candidate_handle);
 
+            //REVIEW: When bomb_exited is true, every mover ignores every bomb, allowing anyone to walk over it.
+            // consider: keeping bombs solid except for a particular bomb's owner while its escape exception is active.
             if (candidate == nullptr || (candidate->kind == EntityKind::bomb && bomb_exited)) {
                 continue;
             }
@@ -794,34 +815,29 @@ namespace kotte
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             
-            if (candidate->kind == EntityKind::player)   {
-                entity_movement_is_blocked_by_player(proposed_collision_bounds, entity_collision_bounds(*candidate));
+            if (CheckCollisionRecs(
+                    proposed_collision_bounds,
+                    entity_collision_bounds(*candidate))) {
 
-            }
-            
-            
-            if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
-                
                 ++collision_diagnostics_.contacts;
+
+                // Contact damage depends on the pair, regardless of which entity moved.
+                const bool player_enemy_contact =
+                    (proposed_entity.kind == EntityKind::player
+                        && candidate->kind == EntityKind::enemy)
+                    ||
+                    (proposed_entity.kind == EntityKind::enemy
+                        && candidate->kind == EntityKind::player);
+
+                if (player_enemy_contact) {
+                    player_death_requested_ = true;
+                }
+
                 blocked = true;
             }
         }
 
         return blocked;
-    }
-
-    void Application::entity_movement_is_blocked_by_player(Rectangle enemy_bounds, Rectangle player_bounds) {
-        Rectangle proposed_collision_bounds = enemy_bounds; 
-
-        //proposed_collision_bounds.x -= 10.0f;
-        //proposed_collision_bounds.y -= 10.0f;
-        //proposed_collision_bounds.width =+ 20.0f;
-        //proposed_collision_bounds.height =+ 20.0f;
-
-        if (CheckCollisionRecs(proposed_collision_bounds, player_bounds)) {
-            player_death_requested_ = true;
-        }
-        
     }
 
     bool Application::is_solid(EntityKind kind) noexcept{

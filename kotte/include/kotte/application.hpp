@@ -120,9 +120,6 @@ namespace kotte
         [[nodiscard]] bool entity_movement_is_blocked(
             EntityHandle moving_entity_handle,
             Vector2 proposed_position);
-        [[nodiscard]] void entity_movement_is_blocked_by_player(
-            Rectangle enemy_bounds,
-            Rectangle player_bounds);
         [[nodiscard]] static bool is_solid(EntityKind kind) noexcept;
         [[nodiscard]] static Vector2 cardinal_vector(CardinalDirection direction) noexcept;
         [[nodiscard]] CardinalDirection different_enemy_direction(CardinalDirection current_direction);
@@ -174,6 +171,9 @@ namespace kotte
         int enemies_destroyed = 0;
         int must_destroy_to_win_condition = 5;
         bool exit_requested_ = false;
+        //REVIEW: This flag is shared by all bombs and doesn't identify which owner it applies to.
+        // consider: keeping an escape flag in each BombState and checking that its owner handle
+        // still refers to a live entity before allowing the exception.
         bool bomb_exited = true;
     };
 }

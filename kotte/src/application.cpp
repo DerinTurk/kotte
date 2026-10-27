@@ -474,6 +474,8 @@ namespace kotte
             }
         }
 
+        
+
         const SpatialQuery spatial_query = spatial_grid_.query(world_view);
         std::size_t exact_visibility_tests = 0;
         std::size_t visible_entities = 0;
@@ -517,6 +519,8 @@ namespace kotte
 
             Rectangle bounds = entity_world_bounds(*visible_candidate);
             ++exact_visibility_tests;
+
+             
             if(!CheckCollisionRecs(bounds, world_view)){
                 continue;
             }
@@ -666,6 +670,10 @@ namespace kotte
         destroy_entity_requests_.clear();
         blast_effects_.clear();
 
+        spatial_grid_ = SpatialGrid({
+            static_cast<float>(map_.width() * tile_size_),
+            static_cast<float>(map_.height() * tile_size_) }, spatial_cell_size_);
+
         entities_.clear();
         populate_entities();
         initialize_enemies();
@@ -792,10 +800,10 @@ namespace kotte
     void Application::entity_movement_is_blocked_by_player(Rectangle enemy_bounds, Rectangle player_bounds) {
         Rectangle proposed_collision_bounds = enemy_bounds; 
 
-        proposed_collision_bounds.x -= 10.0f;
-        proposed_collision_bounds.y -= 10.0f;
-        proposed_collision_bounds.width =+ 20.0f;
-        proposed_collision_bounds.height =+ 20.0f;
+        //proposed_collision_bounds.x -= 10.0f;
+        //proposed_collision_bounds.y -= 10.0f;
+        //proposed_collision_bounds.width =+ 20.0f;
+        //proposed_collision_bounds.height =+ 20.0f;
 
         if (CheckCollisionRecs(proposed_collision_bounds, player_bounds)) {
             player_death_requested_ = true;

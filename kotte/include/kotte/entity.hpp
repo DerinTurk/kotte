@@ -12,7 +12,8 @@ namespace kotte
         player,
         bomb,
         crate,
-        enemy
+        enemy,
+        blast_range_pickup
     };
 
     enum class CardinalDirection : std::uint8_t {
@@ -27,6 +28,14 @@ namespace kotte
         float fuse_remaining = 0.0f;
         std::uint8_t blast_range = 0;
         bool detonation_requested = false;
+
+        // Owner can leave their newly placed bomb once.
+        bool owner_may_escape = true;
+    };
+
+    struct PlayerState final {
+        std::uint8_t blast_range = 3;
+        bool pickup_collected = false;
     };
 
     struct Entity final {
@@ -34,5 +43,6 @@ namespace kotte
         Vector2 world_position{};
         CardinalDirection movement_heading = CardinalDirection::right;
         std::optional<BombState> bomb_state;
+        std::optional<PlayerState> player_state;
     };
 }

@@ -17,6 +17,12 @@
 
 namespace kotte
 {
+    enum class RoundState : std::uint8_t {
+        playing,
+        won,
+        lost
+    };
+
     struct CollisionDiagnostics final {
         std::size_t enemy_updates = 0;
         std::size_t movement_attempts = 0;
@@ -31,7 +37,7 @@ namespace kotte
         std::size_t enemy_turns = 0;
     };
 
-    class Application final{
+    class Application final {
     public:
         Application(
             int window_width,
@@ -50,6 +56,8 @@ namespace kotte
         struct FrameActions final {
             Vector2 player_movement_direction{};
             bool place_bomb = false;
+            bool remote_detonate = false;
+            bool restart = false;
         };
 
         struct PlaceBombRequest final {
@@ -85,8 +93,16 @@ namespace kotte
         void try_move_player(Vector2 axis_displacement);
         void update_enemies(float delta_time);
         void queue_bomb_placement();
+        void queue_remote_detonations();
+        void check_player_contacts();
+        void check_pickup_contact();
+        void update_bomb_owner_escape();
+        void request_player_death() noexcept;
+        void update_round_result();
+        void restart_round();
         void apply_entity_destructions();
         void apply_bomb_placements();
+
         [[nodiscard]] bool resolve_blast_tile(
             BlastEffect& effect,
             int column,
@@ -98,10 +114,12 @@ namespace kotte
             int column_step,
             int row_step,
             std::uint8_t range);
+
         void update_camera(float delta_time) noexcept;
         void render();
         void populate_entities();
         void initialize_enemies();
+
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
         [[nodiscard]] Entity& player() noexcept;
@@ -115,32 +133,41 @@ namespace kotte
         [[nodiscard]] static Vector2 cardinal_vector(CardinalDirection direction) noexcept;
         [[nodiscard]] CardinalDirection different_enemy_direction(CardinalDirection current_direction);
         [[nodiscard]] bool owner_has_active_bomb(EntityHandle owner) const noexcept;
+        [[nodiscard]] bool bomb_occupies(Vector2 world_position) const noexcept;
+        [[nodiscard]] bool player_can_pass_bomb(
+            EntityHandle player_handle,
+            const Entity& bomb) const noexcept;
         [[nodiscard]] static Vector2 tile_centre(Vector2 world_position) noexcept;
         [[nodiscard]] static Vector2 tile_centre(int column, int row) noexcept;
         [[nodiscard]] static Color entity_color(EntityKind kind) noexcept;
         [[nodiscard]] static float entity_roundness(EntityKind kind) noexcept;
+
         static constexpr int tile_size_ = 40;
         static constexpr int spatial_cell_tiles_ = 8;
         static constexpr float spatial_cell_size_ = tile_size_ * spatial_cell_tiles_;
         static constexpr float player_speed_ = 240.0f;
         static constexpr float enemy_speed_ = 80.0f;
         static constexpr float bomb_fuse_seconds_ = 2.0f;
-        static constexpr std::uint8_t bomb_blast_range_ = 3;
+        static constexpr std::uint8_t initial_blast_range_ = 3;
+        static constexpr std::uint8_t maximum_blast_range_ = 6;
+        static constexpr std::size_t bomb_capacity_ = 2;
         static constexpr float blast_effect_seconds_ = 0.35f;
-        static constexpr Color background_color_{0x11, 0x22, 0x33, 0xff};
+
+        static constexpr Color background_color_{ 0x11, 0x22, 0x33, 0xff };
         static constexpr Color floor_colors_[3]{
             Color{0x38, 0x49, 0x52, 0xff},
             Color{0x3d, 0x4f, 0x59, 0xff},
             Color{0x42, 0x55, 0x60, 0xff}
         };
-        static constexpr Color player_color_{0xf2, 0xc1, 0x4e, 0xff};
-        static constexpr Color bomb_color_{0x20, 0x24, 0x2a, 0xff};
-        static constexpr Color blast_color_{0xf2, 0x8f, 0x3b, 0xe8};
-        static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
-        static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
-        static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
+        static constexpr Color player_color_{ 0xf2, 0xc1, 0x4e, 0xff };
+        static constexpr Color bomb_color_{ 0x20, 0x24, 0x2a, 0xff };
+        static constexpr Color blast_color_{ 0xf2, 0x8f, 0x3b, 0xe8 };
+        static constexpr Color crate_color_{ 0xb0, 0x72, 0x3c, 0xff };
+        static constexpr Color enemy_color_{ 0xd9, 0x4f, 0x70, 0xff };
+        static constexpr Color pickup_color_{ 0x6b, 0xd7, 0x95, 0xff };
+        static constexpr Color wall_color_{ 0x78, 0x5f, 0x47, 0xff };
 
-        Window window_; // Constructed first, destroyed last.
+        Window window_;
         Camera camera_;
         Random random_;
         TileMap map_;
@@ -157,6 +184,7 @@ namespace kotte
         CollisionDiagnostics collision_diagnostics_;
         std::uint64_t seed_;
         EntityHandle player_handle_;
+        RoundState round_state_ = RoundState::playing;
         bool exit_requested_ = false;
     };
 }

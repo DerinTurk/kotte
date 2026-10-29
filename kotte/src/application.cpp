@@ -548,7 +548,6 @@ namespace kotte
 
         const Rectangle world_view = camera_.world_view();
         const TileRange visible_tiles = map_.tiles_overlapping(world_view, tile_size_);
-        std::size_t tiles_rendered = 0;
 
         for (int y = visible_tiles.first_row; y < visible_tiles.past_last_row; ++y) {
             for (int x = visible_tiles.first_column; x < visible_tiles.past_last_column; ++x) {
@@ -569,13 +568,10 @@ namespace kotte
                     tile_size_ - 1,
                     tile_size_ - 1,
                     color);
-                ++tiles_rendered;
             }
         }
 
         const SpatialQuery spatial_query = spatial_grid_.query(world_view);
-        std::size_t exact_visibility_tests = 0;
-        std::size_t visible_entities = 0;
         renderer_.clear();
 
         // Blast effects are short-lived presentation values, not authoritative
@@ -615,12 +611,9 @@ namespace kotte
             }
 
             Rectangle bounds = entity_world_bounds(*visible_candidate);
-            ++exact_visibility_tests;
             if (!CheckCollisionRecs(bounds, world_view)) {
                 continue;
             }
-
-            ++visible_entities;
             const Vector2 screen_position = camera_.world_to_screen({ bounds.x, bounds.y });
             bounds.x = screen_position.x;
             bounds.y = screen_position.y;
@@ -638,43 +631,10 @@ namespace kotte
         renderer_.sort();
         renderer_.execute();
 
-        std::string diagnostics;
-        const double percent_of_entities = entities_.live_count() == 0
-            ? 0.0
-            : 100.0 * static_cast<double>(visible_entities) / static_cast<double>(entities_.live_count());
-
-        // A naive collision loop would test every entity for every movement
-        // attempt. Compare that full-scan count with the local broad-phase
-        // candidates; this is candidate reduction, not a measured FPS gain.
-        const double naive_collision_work = static_cast<double>(collision_diagnostics_.movement_attempts)
-            * static_cast<double>(entities_.live_count());
-        const double broad_phase_reduction = naive_collision_work == 0.0
-            ? 0.0
-            : 100.0 * (1.0 - static_cast<double>(collision_diagnostics_.unique_candidates) / naive_collision_work);
-
-        DrawFPS(GetScreenWidth() - 100, 2);
-
-        const double percent_of_world = map_.tile_count() == 0 ? 0.0 : 100.0 * static_cast<double>(tiles_rendered) / static_cast<double>(map_.tile_count());
-        diagnostics = std::format(
-            "tiles rendered: {} ({:.1f}% of world)", tiles_rendered, percent_of_world);
-        DrawText(diagnostics.c_str(), 10, 10, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "entities: {} visible ({:.1f}% of {}) | {} visibility tests | {} commands",
-            visible_entities,
-            percent_of_entities,
-            entities_.live_count(),
-            exact_visibility_tests,
-            renderer_.command_count());
-        DrawText(diagnostics.c_str(), 10, 34, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "enemies updated: {} | active bombs: {} | blast effects: {}",
-            collision_diagnostics_.enemy_updates,
-            active_bomb_handles_.size(),
-            blast_effects_.size());
-        DrawText(diagnostics.c_str(), 10, 58, 20, RAYWHITE);
-
+        // The development diagnostics above the game are intentionally replaced
+        // with a compact player-facing HUD for the final presentation.
+        DrawRectangle(10, 10, 320, 126, Color{ 0x0b, 0x14, 0x20, 0xdd });
+        DrawText("REMOTE BLAST ARENA", 22, 20, 24, pickup_color_);
         const char* round_text = "PLAYING - defeat both enemies";
         Color round_color = RAYWHITE;
         if (round_state_ == RoundState::won) {
@@ -685,31 +645,17 @@ namespace kotte
             round_text = "LOST! Press R to restart";
             round_color = RED;
         }
-        DrawText(round_text, 10, 130, 24, round_color);
+        DrawText(round_text, 22, 52, 20, round_color);
         const PlayerState& player_state = *player().player_state;
-        diagnostics = std::format("blast range: {}/{} | bomb capacity: {} | remote: E",
-            player_state.blast_range, maximum_blast_range_, bomb_capacity_);
-        DrawText(diagnostics.c_str(), 10, 158, 20, pickup_color_);
-
-        diagnostics = std::format(
-            "broad phase: {} candidates | {:.1f}% fewer than full scan",
-            collision_diagnostics_.unique_candidates, broad_phase_reduction);
-        DrawText(diagnostics.c_str(), 10, 82, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "narrow phase: {} exact tests | {} contacts",
-            collision_diagnostics_.exact_tests,
-            collision_diagnostics_.contacts);
-        DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
-
-        diagnostics = std::format("seed: {}", seed_);
-        DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
-
-        diagnostics = std::format(
-            "world: {} x {} tiles | {} total", map_.width(), map_.height(), map_.tile_count());
-        DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
-
-        DrawText("move: WASD/arrows | bomb: Space | remote: E | restart: R | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+        const std::string status = std::format(
+            "Range: {}/{}    Bombs: {}/{}",
+            player_state.blast_range,
+            maximum_blast_range_,
+            active_bomb_handles_.size(),
+            bomb_capacity_);
+        DrawText(status.c_str(), 22, 80, 20, RAYWHITE);
+        DrawText("Move: WASD / Arrows", 22, 106, 18, LIGHTGRAY);
+        DrawText("Bomb: Space    Detonate: E    Restart: R", 22, window_.height() - 32, 18, LIGHTGRAY);
     }
 
     void Application::populate_entities() {

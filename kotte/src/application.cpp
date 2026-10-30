@@ -152,8 +152,6 @@ namespace kotte
     }
 
     void Application::resolve_gameplay_facts() {
-        // A blast can append another bomb fact. Indexing intentionally lets the
-        // same fact pipeline resolve that chain in this mutation cycle.
         for (std::size_t index = 0; index < bomb_detonated_facts_.size(); ++index) {
             const BombDetonated fact = bomb_detonated_facts_[index];
             BlastEffect effect;
@@ -248,6 +246,13 @@ namespace kotte
     void Application::update_enemies(float delta_time) {
         // The update list contains every enemy, not only those returned by the
         // camera query. Off-screen enemies therefore keep simulating normally.
+        static float wandering_turn_seconds = 0.0f;
+        wandering_turn_seconds -= delta_time;
+        const bool choose_wandering_direction = wandering_turn_seconds <= 0.0f;
+        if (choose_wandering_direction) {
+            wandering_turn_seconds = 0.6f;
+        }
+
         for (const EntityHandle enemy_handle : enemy_handles_) {
             // Each enemy is one mover with one cardinal movement attempt.
             ++collision_diagnostics_.enemy_updates;
@@ -255,6 +260,12 @@ namespace kotte
 
             Entity& enemy = entity(enemy_handle);
             const Rectangle old_world_bounds = entity_world_bounds(enemy);
+
+            if (choose_wandering_direction) {
+                enemy.movement_heading = static_cast<CardinalDirection>(
+                    random_.next<4, std::uint8_t>());
+            }
+
             // Propose one cardinal movement for this enemy.
             const Vector2 direction = cardinal_vector(enemy.movement_heading);
             const Vector2 displacement = direction * (enemy_speed_ * delta_time);
@@ -262,7 +273,6 @@ namespace kotte
 
             // Detect a possible contact using this enemy's proposed bounds.
             if (entity_movement_is_blocked(enemy_handle, proposed_position)) {
-                // Respond by turning without moving; retry the new heading next update.
                 ++collision_diagnostics_.blocked_moves;
                 ++collision_diagnostics_.enemy_turns;
                 enemy.movement_heading = different_enemy_direction(enemy.movement_heading);
@@ -282,11 +292,17 @@ namespace kotte
             return;
         }
 
+        const Entity& player_entity = player();
+        const Rectangle player_bounds = entity_collision_bounds(player_entity);
+        const Vector2 placement_reference{
+            player_entity.world_position.x,
+            player_bounds.y + player_bounds.height / 2.0f
+        };
         // Capture values rather than an Entity reference because the request
         // deliberately outlives this simulation phase.
         place_bomb_requests_.push_back({
             player_handle_,
-            tile_centre(player().world_position)
+            tile_centre(placement_reference)
             });
     }
 
@@ -369,7 +385,6 @@ namespace kotte
     }
 
     void Application::update_round_result() {
-        // Loss has priority if an enemy dies in the same simulation frame.
         if (round_state_ == RoundState::playing && enemy_handles_.empty()) {
             round_state_ = RoundState::won;
         }
@@ -396,9 +411,27 @@ namespace kotte
     void Application::apply_bomb_placements() {
         for (const PlaceBombRequest& request : place_bomb_requests_) {
             const Entity* owner = entities_.try_get(request.owner);
+            const float tile_extent = static_cast<float>(tile_size_);
+            const Rectangle target_tile{
+                request.world_position.x - tile_extent / 2.0f,
+                request.world_position.y - tile_extent / 2.0f,
+                tile_extent,
+                tile_extent
+            };
+            const SpatialQuery target_query = spatial_grid_.query(target_tile);
+            const bool crate_occupies_target = std::ranges::any_of(
+                target_query.entity_handles,
+                [this, request](EntityHandle handle) {
+                    const Entity* candidate = entities_.try_get(handle);
+                    return candidate != nullptr
+                        && candidate->kind == EntityKind::crate
+                        && candidate->world_position.x == request.world_position.x
+                        && candidate->world_position.y == request.world_position.y;
+                });
             if (owner == nullptr || owner->kind != EntityKind::player
                 || owner_has_active_bomb(request.owner)
-                || bomb_occupies(request.world_position)) {
+                || bomb_occupies(request.world_position)
+                || crate_occupies_target) {
                 continue;
             }
 
@@ -631,8 +664,6 @@ namespace kotte
         renderer_.sort();
         renderer_.execute();
 
-        // The development diagnostics above the game are intentionally replaced
-        // with a compact player-facing HUD for the final presentation.
         DrawRectangle(10, 10, 320, 126, Color{ 0x0b, 0x14, 0x20, 0xdd });
         DrawText("REMOTE BLAST ARENA", 22, 20, 24, pickup_color_);
         const char* round_text = "PLAYING - defeat both enemies";
@@ -659,9 +690,7 @@ namespace kotte
     }
 
     void Application::populate_entities() {
-        // A deliberately small, fixed demo arena makes both round outcomes
-        // reachable and leaves room to demonstrate every bomb rule.
-        entities_.reserve(16);
+        entities_.reserve(28);
 
         Entity player_entity{ EntityKind::player, tile_centre(2, 2) };
         player_entity.player_state = PlayerState{ initial_blast_range_ };
@@ -682,6 +711,14 @@ namespace kotte
         add(EntityKind::crate, 7, 3);
         add(EntityKind::crate, 10, 7);
         add(EntityKind::crate, 14, 8);
+        add(EntityKind::crate, 3, 5);
+        add(EntityKind::crate, 6, 6);
+        add(EntityKind::crate, 12, 3);
+        add(EntityKind::crate, 15, 4);
+        add(EntityKind::crate, 5, 9);
+        add(EntityKind::crate, 9, 9);
+        add(EntityKind::crate, 12, 10);
+        add(EntityKind::crate, 16, 6);
         add(EntityKind::enemy, 9, 3);
         add(EntityKind::enemy, 14, 9);
     }
@@ -721,12 +758,16 @@ namespace kotte
         switch (entity.kind) {
         case EntityKind::player: size = { 24.0f, 32.0f }; break;
         case EntityKind::bomb: size = { 22.0f, 22.0f }; break;
-        case EntityKind::crate: size = { 36.0f, 48.0f }; break;
+        case EntityKind::crate: size = { 32.0f, 32.0f }; break;
         case EntityKind::enemy: size = { 28.0f, 30.0f }; break;
         case EntityKind::blast_range_pickup: size = { 18.0f, 18.0f }; break;
         }
 
-        const Vector2 top_left = entity.world_position - Vector2{ size.x / 2.0f, size.y };
+        const float vertical_offset = entity.kind == EntityKind::crate
+            ? size.y / 2.0f
+            : size.y;
+        const Vector2 top_left = entity.world_position
+            - Vector2{ size.x / 2.0f, vertical_offset };
         return { top_left.x, top_left.y, size.x, size.y };
     }
 
@@ -743,7 +784,11 @@ namespace kotte
         case EntityKind::blast_range_pickup: size = { 16.0f, 16.0f }; break;
         }
 
-        const Vector2 top_left = entity.world_position - Vector2{ size.x / 2.0f, size.y };
+        const float vertical_offset = entity.kind == EntityKind::crate
+            ? size.y / 2.0f
+            : size.y;
+        const Vector2 top_left = entity.world_position
+            - Vector2{ size.x / 2.0f, vertical_offset };
         return { top_left.x, top_left.y, size.x, size.y };
     }
 

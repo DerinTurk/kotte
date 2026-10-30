@@ -149,7 +149,7 @@ namespace kotte
         static constexpr float enemy_speed_ = 80.0f;
         static constexpr float bomb_fuse_seconds_ = 2.0f;
         static constexpr std::uint8_t initial_blast_range_ = 3;
-        static constexpr std::uint8_t maximum_blast_range_ = 6;
+        static constexpr std::uint8_t maximum_blast_range_ = 4;
         static constexpr std::size_t bomb_capacity_ = 2;
         static constexpr float blast_effect_seconds_ = 0.35f;
 
